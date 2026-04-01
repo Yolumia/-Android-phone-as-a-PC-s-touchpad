@@ -21,7 +21,6 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.net.SocketException
 import java.net.SocketTimeoutException
-import kotlin.math.roundToInt
 
 sealed interface ConnectionState {
     data object Idle : ConnectionState
@@ -110,12 +109,12 @@ class UdpRemoteTouchClient(
         sendSimpleMessage("drag_end")
     }
 
-    fun sendScroll(dx: Float, dy: Float) {
+    fun sendScroll(dx: Int, dy: Int) {
         sendInputMessage(
             type = "scroll",
             payloadBuilder = {
-                put("dx", dx.roundToInt())
-                put("dy", dy.roundToInt())
+                put("dx", dx)
+                put("dy", dy)
             },
         )
     }

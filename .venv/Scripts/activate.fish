@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV 'D:\Android_project\MotoMouse\.venv'
+set -gx VIRTUAL_ENV 'D:\AndroidStudioProjects\mine\Android-phone-as-a-PC-s-touchpad\.venv'
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"Scripts $PATH

@@ -1,25 +1,21 @@
 package com.motorola.motomouse
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 
-class MainActivity : ComponentActivity() {
+class TouchpadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MotoMouseApp(
-                onOpenTouchpad = {
-                    startActivity(
-                        Intent(this, TouchpadActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                        },
-                    )
+            TouchpadApp(
+                onReturnHome = {
+                    finish()
                 },
             )
         }
     }
 }
+

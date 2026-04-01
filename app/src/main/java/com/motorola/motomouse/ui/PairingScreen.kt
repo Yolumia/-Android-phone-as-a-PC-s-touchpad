@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,10 +27,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,19 +48,35 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.motorola.motomouse.data.TouchpadHapticSettings
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 
 @Composable
 fun PairingScreen(
     statusMessage: String,
+    pairedServerName: String?,
+    hasSavedPairing: Boolean,
+    hapticSettings: TouchpadHapticSettings,
     onQrScanned: (String) -> Unit,
+    onRetryConnection: () -> Unit,
+    onForgetPairing: () -> Unit,
+    onHapticsEnabledChange: (Boolean) -> Unit,
+    onHapticIntensityChange: (Float) -> Unit,
+    onHapticFrequencyChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var intensityDraft by remember(hapticSettings.intensity) {
+        mutableFloatStateOf(hapticSettings.intensity)
+    }
+    var frequencyDraft by remember(hapticSettings.frequency) {
+        mutableFloatStateOf(hapticSettings.frequency)
+    }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
@@ -101,6 +123,37 @@ fun PairingScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
+            }
+        }
+
+        if (hasSavedPairing) {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "当前已保存配对",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = pairedServerName ?: "Windows PC",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = "首页只负责扫码和配对。连接成功后会自动进入独立触摸板页面；如果断链，会自动回到这里。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onRetryConnection) {
+                            Text("重新连接")
+                        }
+                        OutlinedButton(onClick = onForgetPairing) {
+                            Text("清除配对")
+                        }
+                    }
+                }
             }
         }
 
@@ -161,6 +214,61 @@ fun PairingScreen(
                 )
             }
         }
+
+        ElevatedCard {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "触觉反馈",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "触摸板点击反馈的开关、强度和频率在首页统一调节。",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Switch(
+                        checked = hapticSettings.enabled,
+                        onCheckedChange = onHapticsEnabledChange,
+                    )
+                }
+
+                if (hapticSettings.enabled) {
+                    Text(
+                        text = "强度：${toPercent(intensityDraft)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = intensityDraft,
+                        onValueChange = { intensityDraft = it },
+                        onValueChangeFinished = {
+                            onHapticIntensityChange(intensityDraft)
+                        },
+                    )
+
+                    Text(
+                        text = "频率：${frequencyLabel(frequencyDraft)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = frequencyDraft,
+                        onValueChange = { frequencyDraft = it },
+                        onValueChangeFinished = {
+                            onHapticFrequencyChange(frequencyDraft)
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -174,6 +282,13 @@ private fun QrCameraPreview(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     var didScan by remember { mutableStateOf(false) }
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+
+    LaunchedEffect(didScan) {
+        if (didScan) {
+            delay(QR_SCAN_COOLDOWN_MS)
+            didScan = false
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -264,6 +379,20 @@ private fun QrCameraPreview(
                 )
             }
         }
+    }
+}
+
+private const val QR_SCAN_COOLDOWN_MS = 1_500L
+
+private fun toPercent(value: Float): String {
+    return "${(value.coerceIn(0f, 1f) * 100).toInt()}%"
+}
+
+private fun frequencyLabel(value: Float): String {
+    return when {
+        value < 0.33f -> "柔和"
+        value < 0.66f -> "平衡"
+        else -> "紧致"
     }
 }
 
